@@ -1,0 +1,51 @@
+{
+  "name": "AWS Client - Android (SolidJS)",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "21",
+      "jdkDistro": "ms"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22",
+      "nodeGypDependencies": true
+    }
+  },
+  "onCreateCommand": "npm install -g pnpm && pnpm install",
+  "postCreateCommand": "pnpm cap sync || true",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "PKief.material-icon-theme",
+        "streetsidesoftware.code-spell-checker",
+        "formulahendry.auto-rename-tag"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        },
+        "eslint.validate": [
+          "javascript",
+          "javascriptreact",
+          "typescript",
+          "typescriptreact"
+        ],
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "files.eol": "\n"
+      }
+    }
+  },
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Dev Server",
+      "onAutoForward": "notify"
+    }
+  },
+  "remoteUser": "node"
+}
