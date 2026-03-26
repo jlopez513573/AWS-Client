@@ -1,15 +1,34 @@
 # AWS-Client
 
-Cliente AWS S3 para dispositivos móviles Android, construido con SolidJS y Capacitor. Permite ver, cargar, eliminar y mover archivos en un bucket de Amazon S3 directamente desde tu dispositivo.
+Cliente AWS S3 para dispositivos móviles **Android**, construido con SolidJS y Capacitor. Permite ver, cargar, eliminar y mover archivos en un bucket de Amazon S3 directamente desde tu dispositivo.
 
-## ⚠️ Aviso de seguridad sobre credenciales
+> **Plataforma objetivo:** esta aplicación está diseñada exclusivamente para **Android**. No está disponible ni soportada en iOS.
 
-> **Las credenciales de AWS (Access Key ID y Secret Access Key) se guardan localmente en el dispositivo donde se instala esta aplicación.**
->
-> - **El usuario es el único responsable** de la seguridad de sus credenciales.
-> - No compartas el dispositivo con personas no autorizadas.
-> - Se recomienda usar **IAM credentials con permisos mínimos** (sólo las acciones de S3 necesarias) y **nunca** las credenciales de root de la cuenta AWS.
+## 🔒 Seguridad
+
+### Cifrado en tránsito (SSL/TLS)
+
+Todas las comunicaciones con Amazon S3 viajan **cifradas mediante TLS** (HTTPS):
+
+- El cliente AWS SDK v3 genera exclusivamente URLs con el esquema `https://` para todos los endpoints estándar de Amazon S3. No existe configuración en esta aplicación que permita solicitudes en texto plano.
+- La aplicación incluye un **middleware de aplicación** que verifica el protocolo en el paso `finalizeRequest` antes de enviar cada petición y lanza un error si la URL resultante no usa `https:`. Esto sirve como guardia explícita contra un posible downgrade accidental a HTTP, por ejemplo si en el futuro se configura un endpoint personalizado con protocolo inseguro.
+- El WebView de Android aplica adicionalmente la política de seguridad de red del sistema operativo, que rechaza conexiones HTTP a orígenes externos en versiones modernas de Android.
+
+### Cifrado en reposo (credenciales en el dispositivo)
+
+Las credenciales de AWS (Access Key ID y Secret Access Key) se almacenan en el dispositivo **cifradas por el sistema operativo**:
+
+| Plataforma | Mecanismo de almacenamiento | Cifrado |
+|---|---|---|
+| **Android** | `EncryptedSharedPreferences` (AndroidX Security) | AES-256-GCM con clave gestionada por **Android Keystore** |
+
+El plugin `@capacitor/preferences` v6 utiliza `EncryptedSharedPreferences` en Android de forma automática y transparente, por lo que los datos nunca se escriben en texto plano en el sistema de archivos.
+
+### Recomendaciones de uso
+
+> - Se recomienda usar **credenciales IAM con permisos mínimos** (sólo las acciones de S3 necesarias). **Nunca** uses las credenciales de root de la cuenta AWS.
 > - Esta aplicación **no utiliza ninguna base de datos ni servicio externo** para almacenar, transmitir o procesar credenciales. Toda la información queda exclusivamente en el dispositivo.
+> - No compartas el dispositivo con personas no autorizadas.
 > - Si pierdes el control del dispositivo, **revoca inmediatamente** las credenciales desde la consola de IAM de AWS.
 
 ## Tecnologías
@@ -18,7 +37,7 @@ Cliente AWS S3 para dispositivos móviles Android, construido con SolidJS y Capa
 - **[SUID](https://suid.io/)** — Componentes Material UI para SolidJS
 - **[AWS SDK v3](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/)** — Cliente oficial de AWS para JavaScript
 - **[Vite](https://vitejs.dev/)** — Bundler y servidor de desarrollo
-- **[Capacitor](https://capacitorjs.com/)** — Bridge para aplicaciones Android/iOS nativas
+- **[Capacitor](https://capacitorjs.com/)** — Bridge para aplicaciones Android nativas
 - **[TypeScript](https://www.typescriptlang.org/)** — Tipado estático
 - **[ESLint](https://eslint.org/)** — Linting de código
 - **[Prettier](https://prettier.io/)** — Formateo de código
