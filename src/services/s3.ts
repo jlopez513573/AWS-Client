@@ -19,13 +19,36 @@ export interface S3Item {
 }
 
 function buildClient(creds: AwsCredentials): S3Client {
-  return new S3Client({
+  const client = new S3Client({
     region: creds.region,
     credentials: {
       accessKeyId: creds.accessKeyId,
       secretAccessKey: creds.secretAccessKey,
     },
   });
+
+  // Enforce HTTPS/TLS for every outgoing request.
+  // The AWS SDK v3 uses https:// by default; this middleware adds an explicit
+  // guard so the app will never silently downgrade to plain HTTP, even if a
+  // future change introduces a custom endpoint with an insecure protocol.
+  // `any` is required here because the SDK middleware stack types are generic
+  // and @smithy/types is a transitive-only dependency not importable directly.
+  client.middlewareStack.add(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (next: (args: any) => Promise<any>) => async (args: any) => {
+      const req = args.request as { protocol?: string };
+      if (req.protocol && req.protocol !== "https:") {
+        throw new Error(
+          "Solo se permiten conexiones HTTPS/TLS a AWS S3. Se bloqueó una solicitud con protocolo: " +
+            req.protocol
+        );
+      }
+      return next(args);
+    },
+    { step: "finalizeRequest", name: "enforceHttpsMiddleware", priority: "high" }
+  );
+
+  return client;
 }
 
 export async function listObjects(

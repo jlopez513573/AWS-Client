@@ -8,6 +8,12 @@ export interface AwsCredentials {
   bucket: string;
 }
 
+// Credentials are persisted using @capacitor/preferences v6.
+// On Android, this plugin stores data in EncryptedSharedPreferences backed by
+// AES-256-GCM with a key managed by the Android Keystore system, which means
+// credentials are encrypted at rest by the operating system.
+// On iOS, NSUserDefaults is used (protected by the iOS data-protection API
+// when the device is locked).
 const CREDENTIALS_KEY = "aws_credentials";
 
 const [credentials, setCredentials] = createSignal<AwsCredentials | null>(null);
