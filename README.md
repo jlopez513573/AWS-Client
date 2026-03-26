@@ -1,6 +1,8 @@
 # AWS-Client
 
-Cliente AWS S3 para dispositivos móviles Android, construido con SolidJS y Capacitor. Permite ver, cargar, eliminar y mover archivos en un bucket de Amazon S3 directamente desde tu dispositivo.
+Cliente AWS S3 para dispositivos móviles **Android**, construido con SolidJS y Capacitor. Permite ver, cargar, eliminar y mover archivos en un bucket de Amazon S3 directamente desde tu dispositivo.
+
+> **Plataforma objetivo:** esta aplicación está diseñada exclusivamente para **Android**. No está disponible ni soportada en iOS.
 
 ## 🔒 Seguridad
 
@@ -19,7 +21,6 @@ Las credenciales de AWS (Access Key ID y Secret Access Key) se almacenan en el d
 | Plataforma | Mecanismo de almacenamiento | Cifrado |
 |---|---|---|
 | **Android** | `EncryptedSharedPreferences` (AndroidX Security) | AES-256-GCM con clave gestionada por **Android Keystore** |
-| **iOS** | `NSUserDefaults` | Protegido por la **API de protección de datos de iOS** (cifrado activo cuando el dispositivo está bloqueado) |
 
 El plugin `@capacitor/preferences` v6 utiliza `EncryptedSharedPreferences` en Android de forma automática y transparente, por lo que los datos nunca se escriben en texto plano en el sistema de archivos.
 
@@ -36,7 +37,7 @@ El plugin `@capacitor/preferences` v6 utiliza `EncryptedSharedPreferences` en An
 - **[SUID](https://suid.io/)** — Componentes Material UI para SolidJS
 - **[AWS SDK v3](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/)** — Cliente oficial de AWS para JavaScript
 - **[Vite](https://vitejs.dev/)** — Bundler y servidor de desarrollo
-- **[Capacitor](https://capacitorjs.com/)** — Bridge para aplicaciones Android/iOS nativas
+- **[Capacitor](https://capacitorjs.com/)** — Bridge para aplicaciones Android nativas
 - **[TypeScript](https://www.typescriptlang.org/)** — Tipado estático
 - **[ESLint](https://eslint.org/)** — Linting de código
 - **[Prettier](https://prettier.io/)** — Formateo de código
