@@ -1,14 +1,30 @@
-import { Component } from "solid-js";
-import styles from "./App.module.css";
+import { Component, onMount, Show } from "solid-js";
+import { ThemeProvider, createTheme } from "@suid/material/styles";
+import CssBaseline from "@suid/material/CssBaseline";
+import { credentials, loadCredentials } from "./store/credentials";
+import CredentialsForm from "./components/CredentialsForm";
+import S3Browser from "./components/S3Browser";
+
+const theme = createTheme({
+  palette: {
+    primary: { main: "#FF9900" },
+    secondary: { main: "#232F3E" },
+  },
+});
 
 const App: Component = () => {
+  onMount(loadCredentials);
+
   return (
-    <div class={styles.app}>
-      <header class={styles.header}>
-        <h1>AWS Client</h1>
-        <p>Cliente AWS para dispositivos móviles Android</p>
-      </header>
-    </div>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Show
+        when={credentials()}
+        fallback={<CredentialsForm initial={credentials()} />}
+      >
+        {(creds) => <S3Browser credentials={creds()} />}
+      </Show>
+    </ThemeProvider>
   );
 };
 

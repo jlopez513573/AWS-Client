@@ -1,10 +1,22 @@
 # AWS-Client
 
-Cliente AWS para dispositivos móviles Android, construido con SolidJS y Capacitor.
+Cliente AWS S3 para dispositivos móviles Android, construido con SolidJS y Capacitor. Permite ver, cargar, eliminar y mover archivos en un bucket de Amazon S3 directamente desde tu dispositivo.
+
+## ⚠️ Aviso de seguridad sobre credenciales
+
+> **Las credenciales de AWS (Access Key ID y Secret Access Key) se guardan localmente en el dispositivo donde se instala esta aplicación.**
+>
+> - **El usuario es el único responsable** de la seguridad de sus credenciales.
+> - No compartas el dispositivo con personas no autorizadas.
+> - Se recomienda usar **IAM credentials con permisos mínimos** (sólo las acciones de S3 necesarias) y **nunca** las credenciales de root de la cuenta AWS.
+> - Esta aplicación **no utiliza ninguna base de datos ni servicio externo** para almacenar, transmitir o procesar credenciales. Toda la información queda exclusivamente en el dispositivo.
+> - Si pierdes el control del dispositivo, **revoca inmediatamente** las credenciales desde la consola de IAM de AWS.
 
 ## Tecnologías
 
 - **[SolidJS](https://solidjs.com/)** — Framework frontend reactivo
+- **[SUID](https://suid.io/)** — Componentes Material UI para SolidJS
+- **[AWS SDK v3](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/)** — Cliente oficial de AWS para JavaScript
 - **[Vite](https://vitejs.dev/)** — Bundler y servidor de desarrollo
 - **[Capacitor](https://capacitorjs.com/)** — Bridge para aplicaciones Android/iOS nativas
 - **[TypeScript](https://www.typescriptlang.org/)** — Tipado estático
