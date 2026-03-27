@@ -29,6 +29,8 @@ import UploadFileIcon from "@suid/icons-material/UploadFile";
 import DownloadIcon from "@suid/icons-material/Download";
 import SettingsIcon from "@suid/icons-material/Settings";
 import RefreshIcon from "@suid/icons-material/Refresh";
+import ChevronRightIcon from "@suid/icons-material/ChevronRight";
+import ChevronLeftIcon from "@suid/icons-material/ChevronLeft";
 import type { AwsCredentials } from "../store/credentials";
 import { clearCredentials } from "../store/credentials";
 import {
@@ -60,7 +62,11 @@ const S3Browser: Component<Props> = (props) => {
 
   // Move dialog
   const [moveTarget, setMoveTarget] = createSignal<S3Item | null>(null);
-  const [moveDest, setMoveDest] = createSignal("");
+  const [moveFileName, setMoveFileName] = createSignal("");
+  const [moveBrowserPrefix, setMoveBrowserPrefix] = createSignal("");
+  const [selectedMoveFolder, setSelectedMoveFolder] = createSignal("");
+  const [moveFolders, setMoveFolders] = createSignal<S3Item[]>([]);
+  const [moveFoldersLoading, setMoveFoldersLoading] = createSignal(false);
   const [moving, setMoving] = createSignal(false);
 
   // Upload
@@ -97,7 +103,7 @@ const S3Browser: Component<Props> = (props) => {
 
   const handleDelete = async () => {
     const target = deleteTarget();
-    if (!target) return;
+    if (!target || target.isFolder) return;
     setDeleting(true);
     try {
       await deleteObject(props.credentials, target.key);
@@ -112,12 +118,18 @@ const S3Browser: Component<Props> = (props) => {
 
   const handleMove = async () => {
     const target = moveTarget();
-    if (!target || !moveDest()) return;
+    const fileName = moveFileName().trim();
+    const destinationFolder = selectedMoveFolder();
+    if (!target || !fileName) return;
+    const destinationKey = `${destinationFolder}${fileName}`;
     setMoving(true);
     try {
-      await moveObject(props.credentials, target.key, moveDest());
+      await moveObject(props.credentials, target.key, destinationKey);
       setMoveTarget(null);
-      setMoveDest("");
+      setMoveFileName("");
+      setMoveBrowserPrefix("");
+      setSelectedMoveFolder("");
+      setMoveFolders([]);
       await refresh();
     } catch (e) {
       setError(getErrorMessage(e, "Error al mover el archivo."));
@@ -153,10 +165,72 @@ const S3Browser: Component<Props> = (props) => {
   };
 
   const displayName = (item: S3Item) => {
-    const key = item.isFolder
-      ? item.key.replace(/\/$/, "")
-      : item.key;
+    const key = item.isFolder ? item.key.replace(/\/$/, "") : item.key;
     return key.substring(prefix().length) || key;
+  };
+
+  const getFileName = (key: string): string => {
+    const cleanKey = key.replace(/\/$/, "");
+    const parts = cleanKey.split("/");
+    return parts[parts.length - 1] || cleanKey;
+  };
+
+  const getParentPrefix = (key: string): string => {
+    const cleanKey = key.replace(/\/$/, "");
+    const parts = cleanKey.split("/");
+    parts.pop();
+    return parts.length > 0 ? `${parts.join("/")}/` : "";
+  };
+
+  const loadMoveFolders = async (folderPrefix: string) => {
+    setMoveFoldersLoading(true);
+    try {
+      const result = await listObjects(props.credentials, folderPrefix);
+      setMoveFolders(result.filter((item) => item.isFolder));
+    } catch (e) {
+      setError(getErrorMessage(e, "Error al cargar carpetas para mover."));
+    } finally {
+      setMoveFoldersLoading(false);
+    }
+  };
+
+  const openMoveDialog = (item: S3Item) => {
+    const parentPrefix = getParentPrefix(item.key);
+    setMoveTarget(item);
+    setMoveFileName(getFileName(item.key));
+    setMoveBrowserPrefix(parentPrefix);
+    setSelectedMoveFolder(parentPrefix);
+    void loadMoveFolders(parentPrefix);
+  };
+
+  const closeMoveDialog = () => {
+    setMoveTarget(null);
+    setMoveFileName("");
+    setMoveBrowserPrefix("");
+    setSelectedMoveFolder("");
+    setMoveFolders([]);
+  };
+
+  const enterMoveFolder = (folder: S3Item) => {
+    setMoveBrowserPrefix(folder.key);
+    setSelectedMoveFolder(folder.key);
+    void loadMoveFolders(folder.key);
+  };
+
+  const moveBrowseUp = () => {
+    const parts = moveBrowserPrefix().replace(/\/$/, "").split("/");
+    parts.pop();
+    const parentPrefix = parts.length > 0 ? `${parts.join("/")}/` : "";
+    setMoveBrowserPrefix(parentPrefix);
+    setSelectedMoveFolder(parentPrefix);
+    void loadMoveFolders(parentPrefix);
+  };
+
+  const getRelativeFolderName = (item: S3Item): string => {
+    const withoutSlash = item.key.replace(/\/$/, "");
+    const currentPrefix = moveBrowserPrefix();
+    const relative = withoutSlash.substring(currentPrefix.length);
+    return relative || withoutSlash;
   };
 
   const formatSize = (bytes?: number) => {
@@ -221,7 +295,9 @@ const S3Browser: Component<Props> = (props) => {
         <Show
           when={items().length > 0}
           fallback={
-            <Typography sx={{ p: 3, textAlign: "center", color: "text.secondary" }}>
+            <Typography
+              sx={{ p: 3, textAlign: "center", color: "text.secondary" }}
+            >
               Esta carpeta está vacía.
             </Typography>
           }
@@ -246,23 +322,20 @@ const S3Browser: Component<Props> = (props) => {
                           <IconButton
                             edge="end"
                             aria-label="mover"
-                            onClick={() => {
-                              setMoveTarget(item);
-                              setMoveDest(item.key);
-                            }}
+                            onClick={() => openMoveDialog(item)}
                             size="small"
                           >
                             <DriveFileMoveIcon fontSize="small" />
                           </IconButton>
+                          <IconButton
+                            edge="end"
+                            aria-label="eliminar"
+                            onClick={() => setDeleteTarget(item)}
+                            size="small"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
                         </Show>
-                        <IconButton
-                          edge="end"
-                          aria-label="eliminar"
-                          onClick={() => setDeleteTarget(item)}
-                          size="small"
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
                       </Box>
                     }
                   >
@@ -337,27 +410,120 @@ const S3Browser: Component<Props> = (props) => {
       </Dialog>
 
       {/* Move dialog */}
-      <Dialog open={!!moveTarget()} onClose={() => setMoveTarget(null)}>
+      <Dialog
+        open={!!moveTarget()}
+        onClose={closeMoveDialog}
+        fullWidth
+        maxWidth="sm"
+      >
         <DialogTitle>Mover / Renombrar archivo</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ mb: 2 }}>
-            Ingresa la nueva ruta (clave) para el archivo.
-          </DialogContentText>
           <TextField
-            label="Nueva ruta"
-            value={moveDest()}
-            onChange={(e) => setMoveDest(e.target.value)}
+            label="Nombre del archivo"
+            value={moveFileName()}
+            onChange={(e) => setMoveFileName(e.target.value)}
             fullWidth
             autoFocus
+            sx={{ mt: 1, mb: 2 }}
           />
+
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+            <IconButton
+              onClick={moveBrowseUp}
+              disabled={moveFoldersLoading() || !moveBrowserPrefix()}
+              size="small"
+              aria-label="Subir carpeta"
+              sx={{
+                border: "1px solid",
+                borderColor: "divider",
+                width: 32,
+                height: 32,
+              }}
+            >
+              <ChevronLeftIcon fontSize="small" />
+            </IconButton>
+          </Box>
+
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            Seleccionada:{" "}
+            {selectedMoveFolder() ? `/${selectedMoveFolder()}` : "/"}
+          </Typography>
+
+          <Box
+            sx={{
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1,
+              maxHeight: 280,
+              overflowY: "auto",
+            }}
+          >
+            <Show when={moveFoldersLoading()}>
+              <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+                <CircularProgress size={24} />
+              </Box>
+            </Show>
+
+            <Show
+              when={!moveFoldersLoading() && moveFolders().length > 0}
+              fallback={
+                <Typography
+                  variant="body2"
+                  sx={{ p: 2, color: "text.secondary", textAlign: "center" }}
+                >
+                  No hay subcarpetas en este nivel.
+                </Typography>
+              }
+            >
+              <List disablePadding>
+                <For each={moveFolders()}>
+                  {(folder) => (
+                    <>
+                      <ListItem
+                        secondaryAction={
+                          <Box sx={{ display: "flex", gap: 1 }}>
+                            <IconButton
+                              size="small"
+                              onClick={() => enterMoveFolder(folder)}
+                              aria-label="Entrar carpeta"
+                              sx={{
+                                border: "1px solid",
+                                borderColor: "divider",
+                                width: 32,
+                                height: 32,
+                              }}
+                            >
+                              <ChevronRightIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        }
+                      >
+                        <ListItemIcon>
+                          <FolderIcon color="primary" />
+                        </ListItemIcon>
+                        <ListItemText primary={getRelativeFolderName(folder)} />
+                      </ListItem>
+                      <Divider component="li" />
+                    </>
+                  )}
+                </For>
+              </List>
+            </Show>
+          </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setMoveTarget(null)} disabled={moving()}>
+          <Button onClick={closeMoveDialog} disabled={moving()}>
             Cancelar
           </Button>
           <Button
             onClick={handleMove}
-            disabled={moving() || !moveDest()}
+            disabled={
+              moving() ||
+              !moveFileName().trim() ||
+              !moveTarget() ||
+              `${selectedMoveFolder()}${moveFileName().trim()}` ===
+                moveTarget()?.key
+            }
             variant="contained"
           >
             {moving() ? "Moviendo…" : "Mover"}

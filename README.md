@@ -18,8 +18,8 @@ Todas las comunicaciones con Amazon S3 viajan **cifradas mediante TLS** (HTTPS):
 
 Las credenciales de AWS (Access Key ID y Secret Access Key) se almacenan en el dispositivo **cifradas por el sistema operativo**:
 
-| Plataforma | Mecanismo de almacenamiento | Cifrado |
-|---|---|---|
+| Plataforma  | Mecanismo de almacenamiento                      | Cifrado                                                   |
+| ----------- | ------------------------------------------------ | --------------------------------------------------------- |
 | **Android** | `EncryptedSharedPreferences` (AndroidX Security) | AES-256-GCM con clave gestionada por **Android Keystore** |
 
 El plugin `@capacitor/preferences` v6 utiliza `EncryptedSharedPreferences` en Android de forma automática y transparente, por lo que los datos nunca se escriben en texto plano en el sistema de archivos.
@@ -139,7 +139,7 @@ Antes de compilar para Android por primera vez, ejecuta:
 
 ```bash
 # Agregar la plataforma Android (solo la primera vez)
-pnpm dlx cap add android
+pnpm cap add android
 
 # Sincronizar assets y plugins
 pnpm cap:sync
