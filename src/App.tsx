@@ -7,8 +7,8 @@ import S3Browser from "./components/S3Browser";
 
 const theme = createTheme({
   palette: {
-    primary: { main: "#FF9900" },
-    secondary: { main: "#232F3E" },
+    primary: { main: "#0097A7" },
+    secondary: { main: "#FFFFFF" },
   },
 });
 

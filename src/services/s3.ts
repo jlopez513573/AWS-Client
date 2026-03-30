@@ -4,6 +4,7 @@ import {
   DeleteObjectCommand,
   CopyObjectCommand,
   GetObjectCommand,
+  PutObjectCommand,
   type _Object,
   type CommonPrefix,
 } from "@aws-sdk/client-s3";
@@ -96,6 +97,26 @@ export async function uploadFile(
     },
   });
   await upload.done();
+}
+
+export async function createFolder(
+  creds: AwsCredentials,
+  prefix: string,
+  folderName: string
+): Promise<void> {
+  const client = buildClient(creds);
+  const normalizedName = folderName.trim().replace(/^\/+|\/+$/g, "");
+  if (!normalizedName) {
+    throw new Error("El nombre de la carpeta no es valido.");
+  }
+
+  await client.send(
+    new PutObjectCommand({
+      Bucket: creds.bucket,
+      Key: `${prefix}${normalizedName}/`,
+      Body: "",
+    })
+  );
 }
 
 export async function deleteObject(

@@ -1,4 +1,14 @@
-import { Component, createSignal, For, Show, onMount } from "solid-js";
+import {
+  Component,
+  createSignal,
+  For,
+  Show,
+  onCleanup,
+  onMount,
+  untrack,
+} from "solid-js";
+import { App as CapacitorApp } from "@capacitor/app";
+import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 import Box from "@suid/material/Box";
 import AppBar from "@suid/material/AppBar";
 import Toolbar from "@suid/material/Toolbar";
@@ -26,6 +36,7 @@ import ArrowBackIcon from "@suid/icons-material/ArrowBack";
 import DeleteIcon from "@suid/icons-material/Delete";
 import DriveFileMoveIcon from "@suid/icons-material/DriveFileMove";
 import UploadFileIcon from "@suid/icons-material/UploadFile";
+import CreateNewFolderIcon from "@suid/icons-material/CreateNewFolder";
 import DownloadIcon from "@suid/icons-material/Download";
 import SettingsIcon from "@suid/icons-material/Settings";
 import RefreshIcon from "@suid/icons-material/Refresh";
@@ -36,6 +47,7 @@ import { clearCredentials } from "../store/credentials";
 import {
   listObjects,
   uploadFile,
+  createFolder,
   deleteObject,
   moveObject,
   getDownloadUrl,
@@ -73,6 +85,14 @@ const S3Browser: Component<Props> = (props) => {
   let fileInputRef: HTMLInputElement | undefined;
   const [uploading, setUploading] = createSignal(false);
 
+  // Create folder dialog
+  const [createFolderOpen, setCreateFolderOpen] = createSignal(false);
+  const [newFolderName, setNewFolderName] = createSignal("");
+  const [creatingFolder, setCreatingFolder] = createSignal(false);
+
+  let lastBackPressAt = 0;
+  let backButtonListener: PluginListenerHandle | undefined;
+
   const refresh = async () => {
     setLoading(true);
     setError("");
@@ -86,8 +106,58 @@ const S3Browser: Component<Props> = (props) => {
     }
   };
 
-  // Initial load
-  onMount(refresh);
+  const handleHardwareBack = async () => {
+    if (untrack(deleteTarget)) {
+      setDeleteTarget(null);
+      return;
+    }
+
+    if (untrack(moveTarget)) {
+      closeMoveDialog();
+      return;
+    }
+
+    if (untrack(createFolderOpen)) {
+      setCreateFolderOpen(false);
+      setNewFolderName("");
+      return;
+    }
+
+    if (untrack(prefix)) {
+      navigateUp();
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastBackPressAt < 2000) {
+      await CapacitorApp.exitApp();
+      return;
+    }
+
+    lastBackPressAt = now;
+    setError("Presiona atrás nuevamente para salir.");
+  };
+
+  // Initial load + Android hardware back behavior
+  onMount(() => {
+    void refresh();
+
+    if (!Capacitor.isNativePlatform()) return;
+
+    void CapacitorApp.addListener("backButton", () => {
+      void handleHardwareBack();
+    })
+      .then((listener) => {
+        backButtonListener = listener;
+      })
+      .catch(() => {
+        // Ignore listener setup errors outside Android runtime.
+      });
+  });
+
+  onCleanup(() => {
+    void backButtonListener?.remove();
+  });
 
   const navigateInto = (folder: S3Item) => {
     setPrefix(folder.key);
@@ -161,6 +231,24 @@ const S3Browser: Component<Props> = (props) => {
     } finally {
       setUploading(false);
       input.value = "";
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    const folderName = newFolderName().trim();
+    if (!folderName) return;
+
+    setCreatingFolder(true);
+    setError("");
+    try {
+      await createFolder(props.credentials, prefix(), folderName);
+      setCreateFolderOpen(false);
+      setNewFolderName("");
+      await refresh();
+    } catch (e) {
+      setError(getErrorMessage(e, "Error al crear la carpeta."));
+    } finally {
+      setCreatingFolder(false);
     }
   };
 
@@ -249,6 +337,9 @@ const S3Browser: Component<Props> = (props) => {
     return `${size}${date}`;
   };
 
+  const currentPathLabel = () =>
+    prefix() ? `/${prefix()}` : props.credentials.bucket;
+
   return (
     <Box sx={{ pb: 8 }}>
       <AppBar position="sticky">
@@ -263,8 +354,19 @@ const S3Browser: Component<Props> = (props) => {
               <ArrowBackIcon />
             </IconButton>
           </Show>
-          <Typography variant="h6" sx={{ flexGrow: 1, ml: 1 }} noWrap>
-            {prefix() ? `/${prefix()}` : props.credentials.bucket}
+          <Typography
+            variant="h6"
+            sx={{
+              flexGrow: 1,
+              ml: 1,
+              minWidth: 0,
+              direction: "rtl",
+              textAlign: "left",
+            }}
+            noWrap
+            title={currentPathLabel()}
+          >
+            {currentPathLabel()}
           </Typography>
           <IconButton color="inherit" onClick={refresh} aria-label="Actualizar">
             <RefreshIcon />
@@ -302,46 +404,17 @@ const S3Browser: Component<Props> = (props) => {
             </Typography>
           }
         >
-          <List disablePadding>
+          <List disablePadding sx={{ pb: 12 }}>
             <For each={items()}>
               {(item) => (
                 <>
-                  <ListItem
-                    disablePadding
-                    secondaryAction={
-                      <Box>
-                        <Show when={!item.isFolder}>
-                          <IconButton
-                            edge="end"
-                            aria-label="descargar"
-                            onClick={() => handleDownload(item)}
-                            size="small"
-                          >
-                            <DownloadIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            edge="end"
-                            aria-label="mover"
-                            onClick={() => openMoveDialog(item)}
-                            size="small"
-                          >
-                            <DriveFileMoveIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            edge="end"
-                            aria-label="eliminar"
-                            onClick={() => setDeleteTarget(item)}
-                            size="small"
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Show>
-                      </Box>
-                    }
-                  >
+                  <ListItem disablePadding>
                     <ListItemButton
                       onClick={() => item.isFolder && navigateInto(item)}
-                      sx={{ cursor: item.isFolder ? "pointer" : "default" }}
+                      sx={{
+                        cursor: item.isFolder ? "pointer" : "default",
+                        width: "100%",
+                      }}
                     >
                       <ListItemIcon>
                         <Show
@@ -352,10 +425,41 @@ const S3Browser: Component<Props> = (props) => {
                         </Show>
                       </ListItemIcon>
                       <ListItemText
+                        sx={{ minWidth: 0 }}
                         primary={displayName(item)}
                         secondary={formatSecondaryText(item)}
-                        primaryTypographyProps={{ noWrap: true }}
+                        primaryTypographyProps={{
+                          noWrap: true,
+                          style: { display: "block" },
+                        }}
+                        secondaryTypographyProps={{ noWrap: true }}
                       />
+                      <Show when={!item.isFolder}>
+                        <IconButton
+                          edge="end"
+                          aria-label="descargar"
+                          onClick={() => handleDownload(item)}
+                          size="small"
+                        >
+                          <DownloadIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          edge="end"
+                          aria-label="mover"
+                          onClick={() => openMoveDialog(item)}
+                          size="small"
+                        >
+                          <DriveFileMoveIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          edge="end"
+                          aria-label="eliminar"
+                          onClick={() => setDeleteTarget(item)}
+                          size="small"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Show>
                     </ListItemButton>
                   </ListItem>
                   <Divider component="li" />
@@ -373,17 +477,40 @@ const S3Browser: Component<Props> = (props) => {
         style={{ display: "none" }}
         onChange={handleUploadChange}
       />
-      <Fab
-        color="primary"
-        aria-label={uploading() ? "Subiendo…" : "Subir archivo"}
-        sx={{ position: "fixed", bottom: 24, right: 24 }}
-        onClick={() => !uploading() && fileInputRef?.click()}
-        disabled={uploading()}
+      <Box
+        sx={{
+          position: "fixed",
+          bottom: 24,
+          right: 24,
+          display: "flex",
+          flexDirection: "row",
+          gap: 1.5,
+        }}
       >
-        <Show when={uploading()} fallback={<UploadFileIcon />}>
-          <CircularProgress size={24} color="inherit" />
-        </Show>
-      </Fab>
+        <Fab
+          color="secondary"
+          aria-label={
+            creatingFolder() ? "Creando carpeta..." : "Crear carpeta"
+          }
+          onClick={() => !creatingFolder() && setCreateFolderOpen(true)}
+          disabled={creatingFolder()}
+        >
+          <Show when={creatingFolder()} fallback={<CreateNewFolderIcon />}>
+            <CircularProgress size={24} color="inherit" />
+          </Show>
+        </Fab>
+
+        <Fab
+          color="primary"
+          aria-label={uploading() ? "Subiendo…" : "Subir archivo"}
+          onClick={() => !uploading() && fileInputRef?.click()}
+          disabled={uploading()}
+        >
+          <Show when={uploading()} fallback={<UploadFileIcon />}>
+            <CircularProgress size={24} color="inherit" />
+          </Show>
+        </Fab>
+      </Box>
 
       {/* Delete confirmation dialog */}
       <Dialog open={!!deleteTarget()} onClose={() => setDeleteTarget(null)}>
@@ -405,6 +532,52 @@ const S3Browser: Component<Props> = (props) => {
             variant="contained"
           >
             {deleting() ? "Eliminando…" : "Eliminar"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create folder dialog */}
+      <Dialog
+        open={createFolderOpen()}
+        onClose={() => {
+          if (creatingFolder()) return;
+          setCreateFolderOpen(false);
+          setNewFolderName("");
+        }}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Crear carpeta</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            La carpeta se creara en: <strong>{prefix() ? `/${prefix()}` : "/"}</strong>
+          </DialogContentText>
+          <TextField
+            label="Nombre de la carpeta"
+            value={newFolderName()}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            fullWidth
+            autoFocus
+            disabled={creatingFolder()}
+            placeholder="Ejemplo: reportes"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setCreateFolderOpen(false);
+              setNewFolderName("");
+            }}
+            disabled={creatingFolder()}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleCreateFolder}
+            disabled={creatingFolder() || !newFolderName().trim()}
+          >
+            {creatingFolder() ? "Creando..." : "Crear"}
           </Button>
         </DialogActions>
       </Dialog>
